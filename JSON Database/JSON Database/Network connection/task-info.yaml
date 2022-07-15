@@ -1,0 +1,246 @@
+type: edu
+files:
+- name: src/client/Main.java
+  visible: true
+  text: |
+    package client;
+
+    import java.io.IOException;
+
+    public class Main {
+
+        public static void main(String[] args) throws IOException {
+        }
+    }
+  learner_created: false
+- name: src/server/Main.java
+  visible: true
+  text: |
+    package server;
+
+    import java.io.BufferedReader;
+    import java.io.IOException;
+    import java.io.InputStreamReader;
+    import java.util.ArrayList;
+    import java.util.Arrays;
+    import java.util.List;
+    import java.util.Scanner;
+    import java.util.regex.Matcher;
+    import java.util.regex.Pattern;
+    import java.util.stream.Collectors;
+
+    public class Main {
+
+        public static void main(String[] args) throws IOException {
+    //        Scanner scanner = new Scanner(System.in);
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+            // start coding here
+            Engine engine = new Engine(100);
+            Command command = getCommand(reader);
+            while (command.action != ActionType.EXIT) {
+                String response = engine.execute(command);
+                System.out.println(response);
+
+                // new cycle
+                command = getCommand(reader);
+            }
+        }
+
+        private static Command getCommand(BufferedReader reader) throws IOException {
+    //    private static Command getCommand(Scanner reader) throws IOException {
+            Command command;
+            String raw = reader.readLine();
+            if (raw.toLowerCase().startsWith("exit")) {
+                return new Command(ActionType.EXIT, 0);
+            }
+
+            List<String> params = new ArrayList<>();
+            int firstIndex = raw.indexOf(" ");
+            params.add(raw.substring(0, firstIndex));
+
+            Pattern pattern = Pattern.compile("\\d+");
+            String secondPart = raw.substring(firstIndex);
+            Matcher matcher = pattern.matcher(secondPart);
+            // нашли индекс
+            int index = -1;
+            String body = null;
+            if (matcher.find()) {
+                String indexStr = secondPart.substring(matcher.start(), matcher.end());
+                params.add(indexStr);
+                if (secondPart.length() > matcher.end()) {
+                    params.add(secondPart.substring(matcher.end() + 1));
+                }
+            } else {
+                throw new RuntimeException("Error in input " + raw);
+            }
+    //        System.out.println(params);
+            command = parse(params);
+            return command;
+        }
+
+        private static class Engine {
+            public Engine(int limit) {
+                memory = new String[limit];
+            }
+
+            private final String[] memory;
+
+            public String set(int index, String body) {
+                if (!validateIndex(index)) {
+                    return "ERROR";
+                }
+                internalSet(index, body);
+                return "OK";
+            }
+
+            public String get(int index) {
+                if (!validateIndex(index) || internalGet(index) == null) {
+                    return "ERROR";
+                }
+                return internalGet(index);
+            }
+
+            private String internalGet(int index) {
+                return memory[index - 1];
+            }
+            private void internalSet(int index, String body) {
+                memory[index - 1] = body;
+            }
+
+            public boolean validateIndex(int index) {
+                return (index > 0 && index <= memory.length);
+            }
+
+            public String execute(Command command) {
+                switch (command.action) {
+                    case SET: return set(command.index, command.body);
+                    case GET: return get(command.index);
+                    case DELETE: return delete(command.index);
+                }
+                return "";
+
+            }
+
+            private String delete(int index) {
+                if (!validateIndex(index)) {
+                    return "ERROR";
+                }
+                if (internalGet(index) == null) {
+                    return "OK";
+                }
+                internalSet(index, null);
+                return "OK";
+            }
+
+        }
+
+        private static Command parse(List<String> collect) {
+
+            int index = Integer.parseInt(collect.get(1));
+            switch (collect.get(0).toUpperCase()) {
+                case "EXIT" : return new Command(ActionType.EXIT, 0);
+                case "GET" : return new Command(ActionType.GET, index);
+                case "DELETE" : return new Command(ActionType.DELETE, index);
+                case "SET" : return new Command(ActionType.SET, index, collect.get(2));
+                default: throw new RuntimeException("Wrong command!");
+            }
+        }
+
+        private enum  ActionType {
+            GET, DELETE, SET, EXIT
+        }
+        private static class Command {
+            public Command(ActionType action, int index) {
+                this.action = action;
+                this.index = index;
+            }
+
+            public Command(ActionType action, int index, String body) {
+                this.action = action;
+                this.index = index;
+                this.body = body;
+            }
+
+            String body;
+            ActionType action;
+            int index;
+        }
+    }
+  learner_created: false
+- name: test/JsonDatabaseTest.java
+  visible: false
+  text: |
+    import org.hyperskill.hstest.dynamic.DynamicTest;
+    import org.hyperskill.hstest.stage.StageTest;
+    import org.hyperskill.hstest.testcase.CheckResult;
+    import org.hyperskill.hstest.testing.TestedProgram;
+
+    public class JsonDatabaseTest extends StageTest<String> {
+
+        private static final String CORRECT_SERVER_OUTPUT =
+            "Server started!\n" +
+                "Received: Give me a record # N\n" +
+                "Sent: A record # N was sent!";
+
+        private static final String CORRECT_CLIENT_OUTPUT =
+            "Client started!\n" +
+                "Sent: Give me a record # N\n" +
+                "Received: A record # N was sent!";
+
+        @DynamicTest(order = 1)
+        CheckResult test() {
+
+            TestedProgram server = new TestedProgram("server");
+            server.startInBackground();
+
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+            String serverOutput = server.getOutput().trim();
+
+            if (!serverOutput.trim().equals("Server started!")) {
+                return CheckResult.wrong("Server output should be 'Server started!' until a client connects!");
+            }
+
+            TestedProgram client = new TestedProgram("client");
+
+            String clientOutput = client.start();
+            serverOutput += "\n" + server.getOutput();
+
+            String[] serverOutputLines = serverOutput.split("\n");
+
+            if (serverOutputLines.length != 3) {
+                return CheckResult.wrong("After the client connects to the server, the server output should contain 3 lines!");
+            }
+
+            String serverOutputLastLine = serverOutputLines[serverOutputLines.length - 1];
+
+            if (!serverOutputLastLine.contains("Sent: A record #") || !serverOutputLastLine.contains("was sent!")) {
+                return CheckResult.wrong("Server output after client connects to the server should be:\n"
+                    + CORRECT_SERVER_OUTPUT + "\n\nWhere N is some number.\n\nYour output:\n" + serverOutput);
+            }
+
+            String[] clientOutputLines = clientOutput.split("\n");
+
+            if (clientOutputLines.length != 3) {
+                return CheckResult.wrong("After the client connects to the server, the client output should contain 3 lines!");
+            }
+
+            String clientOutputLastLine = clientOutputLines[clientOutputLines.length - 1];
+
+            if (!clientOutputLastLine.contains("Received: A record #") || !clientOutputLastLine.contains("was sent!")) {
+                return CheckResult.wrong("Client output after client connects to the server should be:\n"
+                    + CORRECT_CLIENT_OUTPUT + "\n\nWhere N is some number.\n\nYour output:\n" + clientOutput);
+            }
+
+            return CheckResult.correct();
+        }
+    }
+  learner_created: false
+feedback_link: https://hyperskill.org/projects/65/stages/349/implement#comment
+status: Solved
+record: 2

@@ -1,0 +1,16 @@
+/.idea
+/.gradle
+/build
+**/production/
+**/out/
+**/build/
+**/.gradle/
+**/.idea/
+/logs
+/temp
+**/*.log
+/.PVS-Studio
+
+
+
+git.properties
